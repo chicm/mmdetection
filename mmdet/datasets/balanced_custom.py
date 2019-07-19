@@ -130,22 +130,64 @@ class BalancedCustomDataset(Dataset):
     def __len__(self):
         return len(self.img_infos)
 
-    def load_annotations(self, ann_file):
-        with open('/mnt/chicm/data/open-images/detect/train_0-e_100-500.pkl', 'rb') as f:
-            ann1 = pickle.load(f)
-        with open('/mnt/chicm/data/open-images/detect/train_0-e_50-100.pkl', 'rb') as f:
-            ann2 = pickle.load(f)
-        with open('/mnt/chicm/data/open-images/detect/train_0-e_0-50.pkl', 'rb') as f:
-            ann3 = pickle.load(f)
-        #return mmcv.load(ann_file)
-        for i in range(len(ann1)):
-            ann1[i]['ann']['labels'] += 100
-        for i in range(len(ann2)):
-            ann2[i]['ann']['labels'] += 50
+    def merge_ann(self, annos, max_nums=[50000]*4+[30000]*2):
+        print(sum([len(x) for x in annos]))
+        merged_anns = annos[0].copy()
+        merged_fn_dict = {}
+        for i, ann in enumerate(merged_anns):
+            merged_fn_dict[ann['filename']] = i
+        
+        for i in range(1, len(annos)):
+            remain_anns = []
+            found_anns = []
+            for ann in annos[i]:
+                if ann['filename'] in merged_fn_dict:
+                    found_anns.append(ann)
+                else:
+                    remain_anns.append(ann)
+            print(len(found_anns), len(remain_anns))
+            selected_anns = (shuffle(found_anns)[:20000] + shuffle(remain_anns))[:max_nums[i]]
 
-        anns = ann1 + shuffle(ann2)[:50000] + shuffle(ann3)[:70000]
-        print('DATASET LEN: ', len(anns))
-        return shuffle(anns)
+            #for ann in annos[i]:
+            for ann in selected_anns:
+                if ann['filename'] in merged_fn_dict:
+                    idx = merged_fn_dict[ann['filename']]
+                    merged_anns[idx]['ann']['bboxes'] = np.concatenate([merged_anns[idx]['ann']['bboxes'], ann['ann']['bboxes']], axis=0)
+                    merged_anns[idx]['ann']['labels'] = np.concatenate([merged_anns[idx]['ann']['labels'], ann['ann']['labels']], axis=0)
+                else:
+                    merged_anns.append(ann)
+                    merged_fn_dict[ann['filename']] = len(merged_anns)-1
+        print('merged len:', len(merged_anns))
+        return merged_anns
+            
+    def load_annotations(self, ann_file):
+        with open('/mnt/chicm/data/open-images/detect/train_0-e_100-200.pkl', 'rb') as f:
+            ann100 = pickle.load(f)
+        with open('/mnt/chicm/data/open-images/detect/train_0-e_200-300.pkl', 'rb') as f:
+            ann200 = pickle.load(f)
+        with open('/mnt/chicm/data/open-images/detect/train_0-e_300-400.pkl', 'rb') as f:
+            ann300 = pickle.load(f)
+        with open('/mnt/chicm/data/open-images/detect/train_0-e_400-500.pkl', 'rb') as f:
+            ann400 = pickle.load(f)
+        with open('/mnt/chicm/data/open-images/detect/train_0-e_50-100.pkl', 'rb') as f:
+            ann50 = pickle.load(f)
+        with open('/mnt/chicm/data/open-images/detect/train_0-e_0-50.pkl', 'rb') as f:
+            ann0 = pickle.load(f)
+        #return mmcv.load(ann_file)
+        for i in range(len(ann100)):
+            ann100[i]['ann']['labels'] += 100
+        for i in range(len(ann200)):
+            ann200[i]['ann']['labels'] += 200
+        for i in range(len(ann300)):
+            ann300[i]['ann']['labels'] += 300
+        for i in range(len(ann400)):
+            ann400[i]['ann']['labels'] += 400
+        for i in range(len(ann50)):
+            ann50[i]['ann']['labels'] += 50
+
+        merged_anns = self.merge_ann([ann400, ann300, ann200, ann100, ann50, ann0])
+        print('DATASET LEN: ', len(merged_anns))
+        return shuffle(merged_anns)
 
     def load_proposals(self, proposal_file):
         return mmcv.load(proposal_file)
