@@ -1,4 +1,5 @@
 import os.path as osp
+import pandas as pd
 import pickle
 import mmcv
 import numpy as np
@@ -10,9 +11,156 @@ from .transforms import (ImageTransform, BboxTransform, MaskTransform,
 from .utils import to_tensor, random_scale
 from .extra_aug import ExtraAugmentation
 from sklearn.utils import shuffle
+#from detect.utils import get_image_size
+from multiprocessing import Pool
+from tqdm import tqdm
+import struct
+import imghdr
+import cv2
+import glob
+
+DATA_DIR = '/mnt/chicm/data/open-images/relation'
+IMG_DIR = '/mnt/chicm/data/open-images/train/imgs'
+TEST_IMG_DIR = '/mnt/chicm/data/open-images/test'
+
+def get_top_classes(start_index, end_index):
+    df = pd.read_csv(osp.join(DATA_DIR, 'top_classes.csv'))
+    c = df['class'].values[start_index:end_index]
+    #print(df.head())
+    stoi = { c[i]: i for i in range(len(c)) }
+    return c, stoi
+
+classes, stoi = get_top_classes(0, 57)
+
+def get_image_size(fname):
+    '''Determine the image type of fhandle and return its size.
+    from draco'''
+    with open(fname, 'rb') as fhandle:
+        head = fhandle.read(24)
+        if len(head) != 24:
+            raise AssertionError('imghead len != 24')
+        if imghdr.what(fname) == 'png':
+            check = struct.unpack('>i', head[4:8])[0]
+            if check != 0x0d0a1a0a:
+                raise AssertionError('png check failed')
+            width, height = struct.unpack('>ii', head[16:24])
+        elif imghdr.what(fname) == 'gif':
+            width, height = struct.unpack('<HH', head[6:10])
+        elif imghdr.what(fname) == 'jpeg':
+            try:
+                fhandle.seek(0) # Read 0xff next
+                size = 2
+                ftype = 0
+                while not 0xc0 <= ftype <= 0xcf:
+                    fhandle.seek(size, 1)
+                    byte = fhandle.read(1)
+                    while ord(byte) == 0xff:
+                        byte = fhandle.read(1)
+                    ftype = ord(byte)
+                    size = struct.unpack('>H', fhandle.read(2))[0] - 2
+                # We are at a SOFn block
+                fhandle.seek(1, 1)  # Skip `precision' byte.
+                height, width = struct.unpack('>HH', fhandle.read(4))
+            except Exception: #IGNORE:W0703
+                raise
+        else:
+            print(fname, imghdr.what(fname))
+            #raise AssertionError('file format not supported')
+            img = cv2.imread(fname)
+            print(img.shape)
+            height, width, _ = img.shape
+
+        return width, height
 
 
-class BalancedCustomDataset(Dataset):
+def group2mmdetection(group: dict) -> dict:
+    """Custom dataset for detection.
+
+    Annotation format:
+    [
+        {
+            'filename': 'a.jpg',
+            'width': 1280,
+            'height': 720,
+            'ann': {
+                'bboxes': <np.ndarray> (n, 4),
+                'labels': <np.ndarray> (n, ),
+                'bboxes_ignore': <np.ndarray> (k, 4),
+                'labels_ignore': <np.ndarray> (k, 4) (optional field)
+            }
+        },
+        ...
+    ]
+
+    The `ann` field is optional for testing.
+    """
+
+    image_id, group = group
+    filename = group['filename'].values[0]
+    fullpath = osp.join(IMG_DIR, filename)
+    assert image_id == osp.basename(filename).split('.')[0]
+
+    width, height = get_image_size(fullpath)
+
+    group['XMin'] = group['XMin'] * width
+    group['XMax'] = group['XMax'] * width
+    group['YMin'] = group['YMin'] * height
+    group['YMax'] = group['YMax'] * height
+
+    bboxes = [np.expand_dims(group[col].values, -1) for col in['XMin', 'YMin', 'XMax', 'YMax']]
+    bboxes = np.concatenate(bboxes, axis=1)
+    #print(bboxes)
+    #print(bboxes.shape)
+    return {
+        'filename': group['filename'].values[0], #image_id+'.jpg',
+        'width': width,
+        'height': height,
+        'ann': {
+            'bboxes': np.array(bboxes, dtype=np.float32),
+            'labels': np.array([stoi[x] for x in group['LabelName'].values]) + 1
+        }
+    }
+
+def get_balanced_meta():
+    df_box = pd.read_csv(osp.join(DATA_DIR, 'challenge-2019-train-vrd-bbox.csv'))
+    top5_classes, _ = get_top_classes(0, 5)
+    print(top5_classes)
+
+    df_top = df_box.loc[df_box.LabelName.isin(set(top5_classes))]
+    df_bottom = df_box.loc[~df_box.LabelName.isin(set(top5_classes))]
+    #common_imgs = set(df_bottom.ImageID.unique()) & set(df_top.ImageID.unique())
+    selected_imgs = set(df_bottom.ImageID.unique())
+    meta = df_box.loc[df_box.ImageID.isin(selected_imgs)]
+
+    img_files = glob.glob(IMG_DIR + '/**/*.jpg')
+    fullpath_dict = {}
+    for fn in img_files:
+        fullpath_dict[osp.basename(fn).split('.')[0]] = osp.join(osp.basename(osp.dirname(fn)), osp.basename(fn))
+    
+    meta['filename'] = meta.ImageID.map(lambda x: fullpath_dict[x])
+
+    return meta
+
+
+def id2mmdetection(img_id):
+    fn = osp.join(TEST_IMG_DIR, '{}.jpg'.format(img_id))
+    width, height = get_image_size(fn)
+    return {
+        'filename': img_id+'.jpg',
+        'width': width,
+        'height': height,
+    }
+
+def get_test_ds():
+    df = pd.read_csv(osp.join(DATA_DIR, 'VRD_sample_submission.csv'))
+    with Pool(50) as p:
+        img_ids = df.ImageId.values
+        annos = list(tqdm(iterable=p.map(id2mmdetection, img_ids), total=len(img_ids)))
+    print(annos[0])
+    print('DATASET LEN:', len(annos))
+    return annos
+
+class RelationCustomDataset(Dataset):
     """Custom dataset for detection.
 
     Annotation format:
@@ -130,64 +278,23 @@ class BalancedCustomDataset(Dataset):
     def __len__(self):
         return len(self.img_infos)
 
-    def merge_ann(self, annos, max_nums=[40000]*4+[20000]*2):
-        print(sum([len(x) for x in annos]))
-        merged_anns = annos[0].copy()
-        merged_fn_dict = {}
-        for i, ann in enumerate(merged_anns):
-            merged_fn_dict[ann['filename']] = i
-        
-        for i in range(1, len(annos)):
-            remain_anns = []
-            found_anns = []
-            for ann in annos[i]:
-                if ann['filename'] in merged_fn_dict:
-                    found_anns.append(ann)
-                else:
-                    remain_anns.append(ann)
-            print(len(found_anns), len(remain_anns))
-            selected_anns = (shuffle(found_anns)[:15000] + shuffle(remain_anns))[:max_nums[i]]
+    def load_train_annotations(self):
+        meta = get_balanced_meta()
+        print('grouping...')
+        groups = list(meta.groupby('ImageID'))
 
-            #for ann in annos[i]:
-            for ann in selected_anns:
-                if ann['filename'] in merged_fn_dict:
-                    idx = merged_fn_dict[ann['filename']]
-                    merged_anns[idx]['ann']['bboxes'] = np.concatenate([merged_anns[idx]['ann']['bboxes'], ann['ann']['bboxes']], axis=0)
-                    merged_anns[idx]['ann']['labels'] = np.concatenate([merged_anns[idx]['ann']['labels'], ann['ann']['labels']], axis=0)
-                else:
-                    merged_anns.append(ann)
-                    merged_fn_dict[ann['filename']] = len(merged_anns)-1
-        print('merged len:', len(merged_anns))
-        return merged_anns
-            
+        with Pool(50) as p:
+            annos = list(tqdm(iterable=p.imap_unordered(group2mmdetection, groups), total=len(groups)))
+
+        print('DATASET LEN:', len(annos))
+    
+        return shuffle(annos)
+
     def load_annotations(self, ann_file):
-        with open('/mnt/chicm/data/open-images/detect/train_0-e_100-200.pkl', 'rb') as f:
-            ann100 = pickle.load(f)
-        with open('/mnt/chicm/data/open-images/detect/train_0-e_200-300.pkl', 'rb') as f:
-            ann200 = pickle.load(f)
-        with open('/mnt/chicm/data/open-images/detect/train_0-e_300-400.pkl', 'rb') as f:
-            ann300 = pickle.load(f)
-        with open('/mnt/chicm/data/open-images/detect/train_0-e_400-500.pkl', 'rb') as f:
-            ann400 = pickle.load(f)
-        with open('/mnt/chicm/data/open-images/detect/train_0-e_50-100.pkl', 'rb') as f:
-            ann50 = pickle.load(f)
-        with open('/mnt/chicm/data/open-images/detect/train_0-e_0-50.pkl', 'rb') as f:
-            ann0 = pickle.load(f)
-        #return mmcv.load(ann_file)
-        for i in range(len(ann100)):
-            ann100[i]['ann']['labels'] += 100
-        for i in range(len(ann200)):
-            ann200[i]['ann']['labels'] += 200
-        for i in range(len(ann300)):
-            ann300[i]['ann']['labels'] += 300
-        for i in range(len(ann400)):
-            ann400[i]['ann']['labels'] += 400
-        for i in range(len(ann50)):
-            ann50[i]['ann']['labels'] += 50
-
-        merged_anns = self.merge_ann([ann400, ann300, ann200, ann100, ann50, ann0])
-        print('DATASET LEN: ', len(merged_anns))
-        return shuffle(merged_anns)
+        if 'train' in ann_file:
+            return self.load_train_annotations()
+        elif 'test' in ann_file:
+            return get_test_ds()
 
     def load_proposals(self, proposal_file):
         return mmcv.load(proposal_file)
