@@ -10,10 +10,11 @@ from .repeat_dataset import RepeatDataset
 from .extra_aug import ExtraAugmentation
 from .balanced_custom import BalancedCustomDataset
 from .rel_custom import RelationCustomDataset
+from .rel_is_42 import RelationIs42CustomDataset
 
 
 __all__ = [
-    'CustomDataset', 'BalancedCustomDataset', 'RelationCustomDataset', 'XMLDataset', 'CocoDataset', 'VOCDataset', 'GroupSampler',
+    'CustomDataset', 'BalancedCustomDataset', 'RelationIs42CustomDataset', 'RelationCustomDataset', 'XMLDataset', 'CocoDataset', 'VOCDataset', 'GroupSampler',
     'DistributedGroupSampler', 'build_dataloader', 'to_tensor', 'random_scale',
     'show_ann', 'get_dataset', 'ConcatDataset', 'RepeatDataset',
     'ExtraAugmentation', 'WIDERFaceDataset'
