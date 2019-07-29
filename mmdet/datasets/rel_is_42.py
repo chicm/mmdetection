@@ -143,6 +143,48 @@ def get_meta():
 
     return df_vrd_is
 
+def get_top_classes(start_index, end_index):
+    df = pd.read_csv(os.path.join(DATA_DIR, 'top_classes_42.csv'))
+    c = df['class'].values[start_index:end_index]
+    #print(df.head())
+    stoi = { c[i]: i for i in range(len(c)) }
+    return c, stoi
+
+def get_balanced_meta():
+    img_files = glob.glob(IMG_DIR + '/**/*.jpg')
+    fullpath_dict = {}
+    for fn in img_files:
+        fullpath_dict[osp.basename(fn).split('.')[0]] = osp.join(osp.basename(osp.dirname(fn)), osp.basename(fn))
+    
+    df_vrd = pd.read_csv(osp.join(DATA_DIR, 'challenge-2019-train-vrd.csv'))
+    df_vrd_is = df_vrd.loc[df_vrd.RelationshipLabel=='is']
+    print(df_vrd_is.shape)
+    df_vrd_is = df_vrd_is.loc[df_vrd_is.ImageID.isin(fullpath_dict)].copy()
+    print(df_vrd_is.shape)
+
+    df_vrd_is['target'] = df_vrd_is.LabelName1.str.cat(df_vrd_is.LabelName2, sep=',')
+    #df_vrd_is['label'] = df_vrd_is.target.map(lambda x: stoi[x])
+
+
+    ##filer imgs
+    df_0_10 = df_vrd_is.loc[df_vrd_is.target.isin(set(get_top_classes(0, 10)[0]))]
+    df_10_42 = df_vrd_is.loc[df_vrd_is.target.isin(set(get_top_classes(10, 42)[0]))]
+    imgs_10_42 = df_10_42.ImageID.unique()
+    imgs_0_10 = shuffle(list(set(df_0_10.ImageID.unique()) - set(df_10_42.ImageID.unique())))[:10000]
+    selected_img_ids = list(imgs_10_42) + imgs_0_10
+    print('num images:', len(selected_img_ids))
+    ##
+
+    df_balanced = df_vrd_is.loc[df_vrd_is.ImageID.isin(selected_img_ids)].copy()
+
+    
+    #print(fullpath_dict.keys()[:5])
+    
+    df_balanced['filename'] = df_balanced.ImageID.map(lambda x: fullpath_dict[x])
+
+    return df_balanced
+
+
 
 def id2mmdetection(img_id):
     fn = osp.join(TEST_IMG_DIR, '{}.jpg'.format(img_id))
@@ -281,7 +323,8 @@ class RelationIs42CustomDataset(Dataset):
         return len(self.img_infos)
 
     def load_train_annotations(self):
-        meta = get_meta()
+        #meta = get_meta()
+        meta = get_balanced_meta()
         print('grouping...')
         groups = list(meta.groupby('ImageID'))
 

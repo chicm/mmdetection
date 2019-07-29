@@ -130,7 +130,7 @@ class BalancedCustomDataset(Dataset):
     def __len__(self):
         return len(self.img_infos)
 
-    def merge_ann(self, annos, max_nums=[40000]*4+[20000]*2):
+    def merge_ann(self, annos, max_nums=[25000]*6):
         print(sum([len(x) for x in annos]))
         merged_anns = annos[0].copy()
         merged_fn_dict = {}
@@ -146,7 +146,8 @@ class BalancedCustomDataset(Dataset):
                 else:
                     remain_anns.append(ann)
             print(len(found_anns), len(remain_anns))
-            selected_anns = (shuffle(found_anns)[:15000] + shuffle(remain_anns))[:max_nums[i]]
+            #selected_anns = (shuffle(found_anns)[:15000] + shuffle(remain_anns))[:max_nums[i]]
+            selected_anns = (found_anns + shuffle(remain_anns))[:max_nums[i]]
 
             #for ann in annos[i]:
             for ann in selected_anns:
