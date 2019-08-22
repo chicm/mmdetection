@@ -128,9 +128,12 @@ def get_balanced_meta():
 
     df_top = df_box.loc[df_box.LabelName.isin(set(top5_classes))]
     df_bottom = df_box.loc[~df_box.LabelName.isin(set(top5_classes))]
-    #common_imgs = set(df_bottom.ImageID.unique()) & set(df_top.ImageID.unique())
-    selected_imgs = set(df_bottom.ImageID.unique())
-    meta = df_box.loc[df_box.ImageID.isin(selected_imgs)]
+    top_imgs = list(set(df_top.ImageID.unique()) - set(df_bottom.ImageID.unique())) 
+    selected_imgs = list(df_bottom.ImageID.unique()) + top_imgs[:50000]
+    print('top only 5 images:', len(top_imgs))
+    print('top 5 images:', len(df_top.ImageID.unique()))
+    print('selected images:', len(selected_imgs))
+    meta = df_box.loc[df_box.ImageID.isin(set(selected_imgs))]
 
     img_files = glob.glob(IMG_DIR + '/**/*.jpg')
     fullpath_dict = {}

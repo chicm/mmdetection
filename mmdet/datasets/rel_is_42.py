@@ -170,7 +170,7 @@ def get_balanced_meta():
     df_0_10 = df_vrd_is.loc[df_vrd_is.target.isin(set(get_top_classes(0, 10)[0]))]
     df_10_42 = df_vrd_is.loc[df_vrd_is.target.isin(set(get_top_classes(10, 42)[0]))]
     imgs_10_42 = df_10_42.ImageID.unique()
-    imgs_0_10 = shuffle(list(set(df_0_10.ImageID.unique()) - set(df_10_42.ImageID.unique())))[:10000]
+    imgs_0_10 = shuffle(list(set(df_0_10.ImageID.unique()) - set(df_10_42.ImageID.unique())))[:3000]
     selected_img_ids = list(imgs_10_42) + imgs_0_10
     print('num images:', len(selected_img_ids))
     ##
