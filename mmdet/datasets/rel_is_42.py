@@ -23,6 +23,8 @@ import glob
 DATA_DIR = '/mnt/chicm/data/open-images/relation'
 IMG_DIR = '/mnt/chicm/data/open-images/train/imgs'
 TEST_IMG_DIR = '/mnt/chicm/data/open-images/test'
+VAL_IMG_DIR = '/mnt/chicm/data/open-images/val'
+
 
 def get_classes():
     df_classes = pd.read_csv(os.path.join(DATA_DIR, 'classes_is_42.csv'))
@@ -214,6 +216,24 @@ def get_test_ds():
     print('DATASET LEN:', len(annos))
     return annos
 
+def id2mmdetection_val(img_id):
+    fn = osp.join(VAL_IMG_DIR, '{}.jpg'.format(img_id))
+    width, height = get_image_size(fn)
+    return {
+        'filename': img_id+'.jpg',
+        'width': width,
+        'height': height,
+    }
+
+def get_val_ds():
+    df = pd.read_csv(osp.join(DATA_DIR, 'val_imgs.csv'))
+    with Pool(50) as p:
+        img_ids = df.ImageId.values
+        annos = list(tqdm(iterable=p.map(id2mmdetection_val, img_ids), total=len(img_ids)))
+    print(annos[0])
+    print('DATASET LEN:', len(annos))
+    return annos
+
 class RelationIs42CustomDataset(Dataset):
     """Custom dataset for detection.
 
@@ -351,6 +371,8 @@ class RelationIs42CustomDataset(Dataset):
             return self.load_train_annotations()
         elif 'test' in ann_file:
             return get_test_ds()
+        elif 'val' in ann_file:
+            return get_val_ds()
 
     def load_proposals(self, proposal_file):
         return mmcv.load(proposal_file)
