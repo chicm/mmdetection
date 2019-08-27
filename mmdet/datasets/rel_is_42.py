@@ -168,10 +168,20 @@ def get_balanced_meta():
 
     ##filer imgs
     df_0_10 = df_vrd_is.loc[df_vrd_is.target.isin(set(get_top_classes(0, 10)[0]))]
-    df_10_42 = df_vrd_is.loc[df_vrd_is.target.isin(set(get_top_classes(10, 42)[0]))]
-    imgs_10_42 = df_10_42.ImageID.unique()
-    imgs_0_10 = shuffle(list(set(df_0_10.ImageID.unique()) - set(df_10_42.ImageID.unique())))[:3000]
-    selected_img_ids = list(imgs_10_42) + imgs_0_10
+    df_10_20 = df_vrd_is.loc[df_vrd_is.target.isin(set(get_top_classes(10, 20)[0]))]
+    df_20_42 = df_vrd_is.loc[df_vrd_is.target.isin(set(get_top_classes(20, 42)[0]))]
+
+    imgs_20_42 = list(df_20_42.ImageID.unique())
+    imgs_10_20 = list(set(df_10_20.ImageID.unique()) - set(imgs_20_42))
+    #imgs_0_10 = shuffle(list(set(df_0_10.ImageID.unique()) - set(df_10_42.ImageID.unique())))[:3000]
+    imgs_0_10 = list(set(df_0_10.ImageID.unique()) - set(imgs_10_20) - set(imgs_20_42))
+
+    #selected_img_ids = list(imgs_10_42) + imgs_0_10
+    print('imgs_20_42:', len(imgs_20_42))
+    print('imgs_10_20:', len(imgs_10_20))
+    print('imgs_0_10:', len(imgs_0_10))
+
+    selected_img_ids = shuffle(imgs_0_10[:3000] + imgs_10_20[:3000] + imgs_20_42)
     print('num images:', len(selected_img_ids))
     ##
 
