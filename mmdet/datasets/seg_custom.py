@@ -171,9 +171,9 @@ def id2mmdetection(img_id):
     }
 
 def get_test_ds():
-    df = pd.read_csv(osp.join(DATA_DIR, 'VRD_sample_submission.csv'))
+    df = pd.read_csv(osp.join(DATA_DIR, 'sample_empty_submission.csv'))#.iloc[:1000]
     with Pool(50) as p:
-        img_ids = df.ImageId.values
+        img_ids = df.ImageID.values
         annos = list(tqdm(iterable=p.map(id2mmdetection, img_ids), total=len(img_ids)))
     print(annos[0])
     print('DATASET LEN:', len(annos))
