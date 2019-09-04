@@ -25,14 +25,14 @@ MASK_DIR = '/mnt/chicm/data/open-images/masks/train'
 TEST_IMG_DIR = '/mnt/chicm/data/open-images/test'
 VAL_IMG_DIR = '/mnt/chicm/data/open-images/val'
 
-def get_top_classes(start_index=0, end_index=276):
-    df = pd.read_csv(osp.join(DATA_DIR, 'top_classes_level1.csv'))
+def get_top_classes(start_index=0, end_index=26):
+    df = pd.read_csv(osp.join(DATA_DIR, 'top_classes_parent.csv'))
     c = df['class'].values[start_index:end_index]
     #print(df.head())
     stoi = { c[i]: i for i in range(len(c)) }
     return c, stoi
 
-classes, stoi = get_top_classes(0, 276)
+classes, stoi = get_top_classes(0, 26)
 #print(classes)
 
 def get_image_size(fname):
@@ -117,6 +117,7 @@ def group2mmdetection(group: dict) -> dict:
 
     bboxes = [np.expand_dims(group[col].values, -1) for col in['BoxXMin', 'BoxYMin', 'BoxXMax', 'BoxYMax']]
     bboxes = np.concatenate(bboxes, axis=1)
+    assert len(group['LabelName'].values) > 0
     #print(bboxes)
     #print(bboxes.shape)
     return {
@@ -133,16 +134,16 @@ def group2mmdetection(group: dict) -> dict:
 def get_balanced_meta():
     df_masks = pd.read_csv(osp.join(DATA_DIR, 'challenge-2019-train-segmentation-masks.csv'))
 
-    classes_0_20, _ = get_top_classes(0, 20)
-    classes_20_100, _ = get_top_classes(20, 100)
-    classes_100_276, _ = get_top_classes(100, 276)
+    classes_0_4, _ = get_top_classes(0, 4)
+    classes_4_10, _ = get_top_classes(4, 10)
+    classes_10_26, _ = get_top_classes(10, 26)
 
-    imgs_100_276 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_100_276))].ImageID.unique())
-    imgs_20_100 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_20_100))].ImageID.unique()) - imgs_100_276
-    imgs_0_20 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_0_20))].ImageID.unique()) - imgs_20_100 - imgs_100_276
-    print(len(imgs_0_20), len(imgs_20_100), len(imgs_100_276))
+    imgs_10_26 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_10_26))].ImageID.unique())
+    imgs_4_10 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_4_10))].ImageID.unique()) - imgs_10_26
+    imgs_0_4 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_0_4))].ImageID.unique()) - imgs_4_10 - imgs_10_26
+    print(len(imgs_0_4), len(imgs_4_10), len(imgs_10_26))
 
-    selected_imgs = list(imgs_100_276) + shuffle(list(imgs_20_100))[:40000] + shuffle(list(imgs_0_20))[:20000] #[:1000]
+    selected_imgs = list(imgs_10_26) + shuffle(list(imgs_4_10))[:25000] + shuffle(list(imgs_0_4))[:25000] #[:1000]
     df_masks = df_masks.loc[df_masks.ImageID.isin(set(selected_imgs))]
     meta = df_masks.loc[df_masks.LabelName.isin(set(classes))]
     print(meta.shape)
@@ -171,7 +172,7 @@ def id2mmdetection(img_id):
     }
 
 def get_test_ds():
-    df = pd.read_csv(osp.join(DATA_DIR, 'sample_empty_submission.csv')) #.iloc[:1000]
+    df = pd.read_csv(osp.join(DATA_DIR, 'sample_empty_submission.csv'))#.iloc[:1000]
     with Pool(50) as p:
         img_ids = df.ImageID.values
         annos = list(tqdm(iterable=p.map(id2mmdetection, img_ids), total=len(img_ids)))
@@ -197,7 +198,7 @@ def get_test_ds():
 #    print('DATASET LEN:', len(annos))
 #    return annos
 
-class SegCustomDataset(Dataset):
+class SegParentCustomDataset(Dataset):
     """Custom dataset for detection.
 
     Annotation format:
