@@ -16,21 +16,29 @@ from multiprocessing import Pool
 from tqdm import tqdm
 import struct
 import imghdr
-import os
 import cv2
 import glob
 from .settings import REL_DATA_DIR as DATA_DIR, IMG_DIR, TEST_IMG_DIR, VAL_IMG_DIR
 
+classes = [
+    '/m/04yx4,/m/01226z',
+    '/m/04yx4,/m/0wdt60w',
+    '/m/01bl7v,/m/01226z',
+    '/m/05r655,/m/01226z',
+    '/m/03bt1vf,/m/01226z',
+    '/m/04yx4,/m/05ctyq',
+    '/m/03bt1vf,/m/05ctyq',
+    '/m/05r655,/m/05ctyq',
+    '/m/01226z',
+    '/m/0wdt60w',
+    '/m/05ctyq',
+    '/m/04yx4',
+    '/m/01bl7v',
+    '/m/05r655',
+    '/m/03bt1vf']
+stoi = { classes[i]: i for i in range(len(classes)) }
 
-def get_top_classes(start_index, end_index):
-    df = pd.read_csv(os.path.join(DATA_DIR, 'top_classes_42.csv'))
-    c = df['class'].values[start_index:end_index]
-    #print(df.head())
-    stoi = { c[i]: i for i in range(len(c)) }
-    return c, stoi
-
-#classes, stoi = get_top_classes()
-stoi = None
+print('IMG_DIR', IMG_DIR)
 
 def get_image_size(fname):
     '''Determine the image type of fhandle and return its size.
@@ -102,12 +110,12 @@ def group2mmdetection(group: dict) -> dict:
 
     width, height = get_image_size(fullpath)
 
-    group['XMin1'] = group['XMin1'] * width
-    group['XMax1'] = group['XMax1'] * width
-    group['YMin1'] = group['YMin1'] * height
-    group['YMax1'] = group['YMax1'] * height
+    group['XMin'] = group['XMin'] * width
+    group['XMax'] = group['XMax'] * width
+    group['YMin'] = group['YMin'] * height
+    group['YMax'] = group['YMax'] * height
 
-    bboxes = [np.expand_dims(group[col].values, -1) for col in['XMin1', 'YMin1', 'XMax1', 'YMax1']]
+    bboxes = [np.expand_dims(group[col].values, -1) for col in['XMin', 'YMin', 'XMax', 'YMax']]
     bboxes = np.concatenate(bboxes, axis=1)
     #print(bboxes)
     #print(bboxes.shape)
@@ -117,75 +125,49 @@ def group2mmdetection(group: dict) -> dict:
         'height': height,
         'ann': {
             'bboxes': np.array(bboxes, dtype=np.float32),
-            'labels': np.array([stoi[x] for x in group['target'].values]) + 1
+            'labels': np.array([stoi[x] for x in group['LabelName'].values]) + 1
         }
     }
 
-def get_meta():
+def get_balanced_meta():
+    df_vrd = pd.read_csv(osp.join(DATA_DIR, 'challenge-2019-train-vrd.csv'))
+    df_vrd['target'] = df_vrd.LabelName1.str.cat(df_vrd.LabelName2, sep=',')
+    df_box = pd.read_csv(osp.join(DATA_DIR, 'challenge-2019-train-vrd-bbox.csv'))
+
+    df_hits = df_vrd.loc[df_vrd.RelationshipLabel=='hits'].copy()
+    df_hits = df_hits.drop(columns=['LabelName1', 'LabelName2', 'RelationshipLabel', 'XMin2', 'YMin2', 'XMax2', 'YMax2'], axis=1)
+    df_hits.rename(columns={'XMin1': 'XMin', 'XMax1': 'XMax', 'YMin1': 'YMin', 'YMax1': 'YMax', 'target': 'LabelName'}, inplace=True)
+    img_hits = df_hits.ImageID.unique()
+
+    df_human = df_box.loc[df_box.LabelName.isin(classes[11:])]
+    df_human_neg = df_human.loc[~df_human.ImageID.isin(set(img_hits))]
+    img_human_neg = df_human_neg.ImageID.unique()[:1000]
+    df_football = df_box.loc[df_box.LabelName=='/m/01226z']
+    img_football = df_football.ImageID.unique()[:1500]
+    img_otherball = df_box.loc[df_box.LabelName.isin(['/m/0wdt60w', '/m/05ctyq'])].ImageID.unique()
+
+    selected_imgs = set(img_human_neg) | set(img_football) | set(img_otherball)
+    df_box_hits = df_box.loc[df_box.ImageID.isin(selected_imgs)]
+    df_box_hits = df_box_hits.loc[df_box_hits.LabelName.isin(classes[8:])].copy()
+
+
+    df_box_hits = df_box_hits.drop(columns=['IsGroupOf'], axis=1)
+    meta = pd.concat([df_hits, df_box_hits], sort=False)
+
+    #df_human_neg.shape
+
     img_files = glob.glob(IMG_DIR + '/**/*.jpg')
     fullpath_dict = {}
     for fn in img_files:
         fullpath_dict[osp.basename(fn).split('.')[0]] = osp.join(osp.basename(osp.dirname(fn)), osp.basename(fn))
     
-    df_vrd = pd.read_csv(osp.join(DATA_DIR, 'challenge-2019-train-vrd.csv'))
-    df_vrd_is = df_vrd.loc[df_vrd.RelationshipLabel=='is']
-    print(df_vrd_is.shape)
-    df_vrd_is = df_vrd_is.loc[df_vrd_is.ImageID.isin(fullpath_dict)].copy()
-    print(df_vrd_is.shape)
+    meta['filename'] = meta.ImageID.map(lambda x: fullpath_dict[x])
 
-    df_vrd_is['target'] = df_vrd_is.LabelName1.str.cat(df_vrd_is.LabelName2, sep=',')
-    #df_vrd_is['label'] = df_vrd_is.target.map(lambda x: stoi[x])
+    return meta
 
-    
-    #print(fullpath_dict.keys()[:5])
-    
-    df_vrd_is['filename'] = df_vrd_is.ImageID.map(lambda x: fullpath_dict[x])
-
-    return df_vrd_is
-
-def get_balanced_meta(start_index=0, end_index=42):
-    global stoi
-    _, stoi = get_top_classes(start_index, end_index)
-
-    img_files = glob.glob(IMG_DIR + '/**/*.jpg')
-    fullpath_dict = {}
-    for fn in img_files:
-        fullpath_dict[osp.basename(fn).split('.')[0]] = osp.join(osp.basename(osp.dirname(fn)), osp.basename(fn))
-    
-    df_vrd = pd.read_csv(osp.join(DATA_DIR, 'challenge-2019-train-vrd.csv'))
-    df_vrd_is = df_vrd.loc[df_vrd.RelationshipLabel=='is']
-    print(df_vrd_is.shape)
-    df_vrd_is = df_vrd_is.loc[df_vrd_is.ImageID.isin(fullpath_dict)].copy()
-    print(df_vrd_is.shape)
-
-    df_vrd_is['target'] = df_vrd_is.LabelName1.str.cat(df_vrd_is.LabelName2, sep=',')
-    #df_vrd_is['label'] = df_vrd_is.target.map(lambda x: stoi[x])
-
-
-    ##filer imgs
-    #df_0_10 = df_vrd_is.loc[df_vrd_is.target.isin(set(get_top_classes(0, 10)[0]))]
-    #df_10_42 = df_vrd_is.loc[df_vrd_is.target.isin(set(get_top_classes(10, 42)[0]))]
-    #imgs_10_42 = df_10_42.ImageID.unique()
-    #imgs_0_10 = shuffle(list(set(df_0_10.ImageID.unique()) - set(df_10_42.ImageID.unique())))[:3000]
-    #selected_img_ids = list(imgs_10_42) + imgs_0_10
-    #print('num images:', len(selected_img_ids))
-    ##
-
-    #df_balanced = df_vrd_is.loc[df_vrd_is.ImageID.isin(selected_img_ids)].copy()
-
-    # new method
-    print('start_index:', start_index, 'end_index:', end_index)
-    df_balanced = df_vrd_is.loc[df_vrd_is.target.isin(set(get_top_classes(start_index, end_index)[0]))].copy()
-    print('num images:', len(df_balanced.ImageID.unique()))
-
-    
-    #print(fullpath_dict.keys()[:5])
-    
-    df_balanced['filename'] = df_balanced.ImageID.map(lambda x: fullpath_dict[x])
-
-    return df_balanced
-
-
+def get_val_meta():
+    df_box = pd.read_csv(osp.join(DATA_DIR, 'challenge-2019-validation-vrd-bbox.csv'))
+    df_box['filename'] = df_box.ImageID.map(lambda x: x+'.jpg')
 
 def id2mmdetection(img_id):
     fn = osp.join(TEST_IMG_DIR, '{}.jpg'.format(img_id))
@@ -205,7 +187,25 @@ def get_test_ds():
     print('DATASET LEN:', len(annos))
     return annos
 
-class RelationIs42TopCustomDataset(Dataset):
+def id2mmdetection_val(img_id):
+    fn = osp.join(VAL_IMG_DIR, '{}.jpg'.format(img_id))
+    width, height = get_image_size(fn)
+    return {
+        'filename': img_id+'.jpg',
+        'width': width,
+        'height': height,
+    }
+
+def get_val_ds():
+    df = pd.read_csv(osp.join(DATA_DIR, 'val_imgs.csv'))
+    with Pool(50) as p:
+        img_ids = df.ImageId.values
+        annos = list(tqdm(iterable=p.map(id2mmdetection_val, img_ids), total=len(img_ids)))
+    print(annos[0])
+    print('DATASET LEN:', len(annos))
+    return annos
+
+class HitsDetectCustomDataset(Dataset):
     """Custom dataset for detection.
 
     Annotation format:
@@ -247,14 +247,12 @@ class RelationIs42TopCustomDataset(Dataset):
                  seg_scale_factor=1,
                  extra_aug=None,
                  resize_keep_ratio=True,
-                 test_mode=False,
-                 start_index=0,
-                 end_index=42):
+                 test_mode=False):
         # prefix of images path
         self.img_prefix = img_prefix
 
         # load annotations (and proposals)
-        self.img_infos = self.load_annotations(ann_file, start_index, end_index)
+        self.img_infos = self.load_annotations(ann_file)
         if proposal_file is not None:
             self.proposals = self.load_proposals(proposal_file)
         else:
@@ -325,9 +323,8 @@ class RelationIs42TopCustomDataset(Dataset):
     def __len__(self):
         return len(self.img_infos)
 
-    def load_train_annotations(self, start_index, end_index):
-        #meta = get_meta()
-        meta = get_balanced_meta(start_index, end_index)
+    def load_train_annotations(self):
+        meta = get_balanced_meta()
         print('grouping...')
         groups = list(meta.groupby('ImageID'))
 
@@ -335,15 +332,16 @@ class RelationIs42TopCustomDataset(Dataset):
             annos = list(tqdm(iterable=p.imap_unordered(group2mmdetection, groups), total=len(groups)))
 
         print('DATASET LEN:', len(annos))
-        print(annos[:5])
     
         return shuffle(annos)
 
-    def load_annotations(self, ann_file, start_index=0, end_index=42):
+    def load_annotations(self, ann_file):
         if 'train' in ann_file:
-            return self.load_train_annotations(start_index, end_index)
+            return self.load_train_annotations()
         elif 'test' in ann_file:
             return get_test_ds()
+        elif 'val' in ann_file:
+            return get_val_ds()
 
     def load_proposals(self, proposal_file):
         return mmcv.load(proposal_file)

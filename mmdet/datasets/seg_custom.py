@@ -18,12 +18,8 @@ import struct
 import imghdr
 import cv2
 import glob
+from .settings import SEG_DATA_DIR as DATA_DIR, IMG_DIR, MASK_DIR, TEST_IMG_DIR, VAL_IMG_DIR
 
-DATA_DIR = '/mnt/chicm/data/open-images/segmentation'
-IMG_DIR = '/mnt/chicm/data/open-images/train/imgs'
-MASK_DIR = '/mnt/chicm/data/open-images/masks/train'
-TEST_IMG_DIR = '/mnt/chicm/data/open-images/test'
-VAL_IMG_DIR = '/mnt/chicm/data/open-images/val'
 
 def get_top_classes(start_index=0, end_index=276):
     df = pd.read_csv(osp.join(DATA_DIR, 'top_classes_level1.csv'))

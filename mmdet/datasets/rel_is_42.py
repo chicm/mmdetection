@@ -20,10 +20,7 @@ import os
 import cv2
 import glob
 
-DATA_DIR = '/mnt/chicm/data/open-images/relation'
-IMG_DIR = '/mnt/chicm/data/open-images/train/imgs'
-TEST_IMG_DIR = '/mnt/chicm/data/open-images/test'
-VAL_IMG_DIR = '/mnt/chicm/data/open-images/val'
+from .settings import REL_DATA_DIR as DATA_DIR, IMG_DIR, TEST_IMG_DIR, VAL_IMG_DIR
 
 
 def get_classes():
