@@ -20,7 +20,7 @@ import imghdr
 import cv2
 import glob
 from .settings import SEG_DATA_DIR as DATA_DIR, IMG_DIR, MASK_DIR, TEST_IMG_DIR, VAL_IMG_DIR
-
+import pandas as pd
 
 def get_top_classes(start_index=0, end_index=26):
     df = pd.read_csv(osp.join(DATA_DIR, 'top_classes_parent.csv'))
