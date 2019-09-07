@@ -144,7 +144,7 @@ def get_balanced_meta(start_index, end_index):
 
     #selected_imgs = list(imgs_100_276) + shuffle(list(imgs_20_100))[:40000] + shuffle(list(imgs_0_20))[:20000] #[:1000]
     #df_masks = df_masks.loc[df_masks.ImageID.isin(set(selected_imgs))]
-    meta = df_masks.loc[df_masks.LabelName.isin(set(classes))]
+    meta = df_masks.loc[df_masks.LabelName.isin(set(classes))].copy()
     
     print(meta.shape)
     print('num images:', len(meta.ImageID.unique()))
