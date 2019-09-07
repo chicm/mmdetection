@@ -14,6 +14,7 @@ from .rel_is_42 import RelationIs42CustomDataset
 from .rel_is_42_top import RelationIs42TopCustomDataset
 from .seg_custom import SegCustomDataset
 from .seg_custom_parent import SegParentCustomDataset
+from .seg_top_custom import SegTopCustomDataset
 from .hits_detect_custom import HitsDetectCustomDataset
 
 
@@ -21,5 +22,6 @@ __all__ = [
     'CustomDataset', 'BalancedCustomDataset', 'RelationIs42CustomDataset', 'RelationCustomDataset', 'XMLDataset', 'CocoDataset', 'VOCDataset', 'GroupSampler',
     'DistributedGroupSampler', 'build_dataloader', 'to_tensor', 'random_scale', 'HitsDetectCustomDataset',
     'show_ann', 'get_dataset', 'ConcatDataset', 'RepeatDataset',
-    'ExtraAugmentation', 'WIDERFaceDataset', 'RelationIs42TopCustomDataset', 'SegCustomDataset', 'SegParentCustomDataset'
+    'ExtraAugmentation', 'WIDERFaceDataset', 'RelationIs42TopCustomDataset',
+    'SegCustomDataset', 'SegParentCustomDataset', 'SegTopCustomDataset'
 ]
