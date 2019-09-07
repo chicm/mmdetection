@@ -38,7 +38,7 @@ classes = [
     '/m/03bt1vf']
 stoi = { classes[i]: i for i in range(len(classes)) }
 
-print('IMG_DIR', IMG_DIR)
+#print('IMG_DIR', IMG_DIR)
 
 def get_image_size(fname):
     '''Determine the image type of fhandle and return its size.
@@ -179,10 +179,15 @@ def id2mmdetection(img_id):
     }
 
 def get_test_ds():
+    print('reading VRD_sample_submission.csv...')
     df = pd.read_csv(osp.join(DATA_DIR, 'VRD_sample_submission.csv'))
-    with Pool(50) as p:
-        img_ids = df.ImageId.values
-        annos = list(tqdm(iterable=p.map(id2mmdetection, img_ids), total=len(img_ids)))
+    print('creating mmdet test data...')
+    #with Pool(50) as p:
+    #    img_ids = df.ImageId.values
+    #    annos = list(tqdm(iterable=p.map(id2mmdetection, img_ids), total=len(img_ids)))
+    annos = []
+    for img_id in tqdm(df.ImageId.values):
+        annos.append(id2mmdetection(img_id))
     print(annos[0])
     print('DATASET LEN:', len(annos))
     return annos
