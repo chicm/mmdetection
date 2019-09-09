@@ -21,14 +21,14 @@ import glob
 from .settings import SEG_DATA_DIR as DATA_DIR, IMG_DIR, MASK_DIR, TEST_IMG_DIR, VAL_IMG_DIR
 
 
-def get_top_classes(start_index=0, end_index=276):
+def get_top_classes(start_index=0, end_index=275):
     df = pd.read_csv(osp.join(DATA_DIR, 'top_classes_level1.csv'))
     c = df['class'].values[start_index:end_index]
     #print(df.head())
     stoi = { c[i]: i for i in range(len(c)) }
     return c, stoi
 
-classes, stoi = get_top_classes(0, 276)
+classes, stoi = get_top_classes(0, 275)
 #print(classes)
 
 def get_image_size(fname):
@@ -138,7 +138,7 @@ def get_balanced_meta():
     imgs_0_20 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_0_20))].ImageID.unique()) - imgs_20_100 - imgs_100_276
     print(len(imgs_0_20), len(imgs_20_100), len(imgs_100_276))
 
-    selected_imgs = list(imgs_100_276) + shuffle(list(imgs_20_100))[:40000] + shuffle(list(imgs_0_20))[:20000] #[:1000]
+    selected_imgs = list(imgs_100_276) + shuffle(list(imgs_20_100))[:50000] + shuffle(list(imgs_0_20))[:30000] #[:1000]
     df_masks = df_masks.loc[df_masks.ImageID.isin(set(selected_imgs))]
     meta = df_masks.loc[df_masks.LabelName.isin(set(classes))]
     print(meta.shape)
