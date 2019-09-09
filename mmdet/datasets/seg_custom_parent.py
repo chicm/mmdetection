@@ -21,14 +21,14 @@ import glob
 from .settings import SEG_DATA_DIR as DATA_DIR, IMG_DIR, MASK_DIR, TEST_IMG_DIR, VAL_IMG_DIR
 
 
-def get_top_classes(start_index=0, end_index=26):
+def get_top_classes(start_index=0, end_index=25):
     df = pd.read_csv(osp.join(DATA_DIR, 'top_classes_parent.csv'))
     c = df['class'].values[start_index:end_index]
     #print(df.head())
     stoi = { c[i]: i for i in range(len(c)) }
     return c, stoi
 
-classes, stoi = get_top_classes(0, 26)
+classes, stoi = get_top_classes(0, 25)
 #print(classes)
 
 def get_image_size(fname):
@@ -132,14 +132,14 @@ def get_balanced_meta():
 
     classes_0_4, _ = get_top_classes(0, 4)
     classes_4_10, _ = get_top_classes(4, 10)
-    classes_10_26, _ = get_top_classes(10, 26)
+    classes_10_25, _ = get_top_classes(10, 25)
 
-    imgs_10_26 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_10_26))].ImageID.unique())
-    imgs_4_10 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_4_10))].ImageID.unique()) - imgs_10_26
-    imgs_0_4 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_0_4))].ImageID.unique()) - imgs_4_10 - imgs_10_26
-    print(len(imgs_0_4), len(imgs_4_10), len(imgs_10_26))
+    imgs_10_25 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_10_25))].ImageID.unique())
+    imgs_4_10 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_4_10))].ImageID.unique()) - imgs_10_25
+    imgs_0_4 = set(df_masks.loc[df_masks.LabelName.isin(set(classes_0_4))].ImageID.unique()) - imgs_4_10 - imgs_10_25
+    print(len(imgs_0_4), len(imgs_4_10), len(imgs_10_25))
 
-    selected_imgs = list(imgs_10_26) + shuffle(list(imgs_4_10))[:25000] + shuffle(list(imgs_0_4))[:25000] #[:1000]
+    selected_imgs = list(imgs_10_25) + shuffle(list(imgs_4_10))[:30000] + shuffle(list(imgs_0_4))[:25000] #[:1000]
     df_masks = df_masks.loc[df_masks.ImageID.isin(set(selected_imgs))]
     meta = df_masks.loc[df_masks.LabelName.isin(set(classes))]
     print(meta.shape)
