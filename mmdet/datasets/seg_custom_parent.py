@@ -127,8 +127,49 @@ def group2mmdetection(group: dict) -> dict:
         }
     }
 
+def get_class_info():
+    with open(osp.join(DATA_DIR, 'challenge-2019-label300-segmentable-hierarchy.json'), 'r') as f:
+        h = json.load(f)
+    leaf_classes = []
+    parent_classes = []
+    parent_dict = {}
+
+    def travel(root, parent=[]):
+        if 'Subcategory' in root:
+            parent_classes.append(root['LabelName'])
+            for c in root['Subcategory']:
+                travel(c, parent+[root['LabelName']])
+        else:
+            leaf_classes.append(root['LabelName'])
+            parent_dict[root['LabelName']] = parent
+
+    travel(h)
+
+    parent_classes.remove('/m/0bl9f')
+    for k in parent_dict:
+        parent_dict[k].remove('/m/0bl9f')
+        #if parent_dict[k] and k in leaf_classes:
+        #    print(k, parent_dict[k])
+        #    print(class_dict[k], [class_dict[x] for x in parent_dict[k]])
+    return set(leaf_classes), set(parent_classes), parent_dict
+
+import random
+def get_parent_label(label_name):
+    if label_name in parent_classes:
+        return label_name
+    elif label_name in leaf_classes:
+        if parent_dict[label_name]:
+            return random.choice(parent_dict[label_name])
+        else:
+            return 'none'
+
 def get_balanced_meta():
     df_masks = pd.read_csv(osp.join(DATA_DIR, 'challenge-2019-train-segmentation-masks.csv'))
+
+    if True:
+        leaf_classes, parent_classes, parent_dict = get_class_info()
+        df_masks.LabelName = df_masks.LabelName.map(lambda x: get_parent_label(x))
+        df_masks = df_masks.loc[df_masks.LabelName!='none'].copy()
 
     classes_0_4, _ = get_top_classes(0, 4)
     classes_4_10, _ = get_top_classes(4, 10)
