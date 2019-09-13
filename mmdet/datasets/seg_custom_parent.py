@@ -164,11 +164,12 @@ def get_parent_label(label_name):
         else:
             return 'none'
 
+leaf_classes, parent_classes, parent_dict = get_class_info()
+
 def get_balanced_meta():
     df_masks = pd.read_csv(osp.join(DATA_DIR, 'challenge-2019-train-segmentation-masks.csv'))
 
     if True:
-        leaf_classes, parent_classes, parent_dict = get_class_info()
         df_masks.LabelName = df_masks.LabelName.map(lambda x: get_parent_label(x))
         df_masks = df_masks.loc[df_masks.LabelName!='none'].copy()
 
