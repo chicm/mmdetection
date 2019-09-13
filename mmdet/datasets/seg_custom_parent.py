@@ -127,6 +127,7 @@ def group2mmdetection(group: dict) -> dict:
         }
     }
 
+import json
 def get_class_info():
     with open(osp.join(DATA_DIR, 'challenge-2019-label300-segmentable-hierarchy.json'), 'r') as f:
         h = json.load(f)
