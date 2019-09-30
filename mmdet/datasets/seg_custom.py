@@ -333,7 +333,9 @@ class SegCustomDataset(Dataset):
             return get_val_ds()
 
     def load_proposals(self, proposal_file):
-        return mmcv.load(proposal_file)
+        #return mmcv.load(proposal_file)
+        print('loading proposals: {} ...'.format(proposal_file))
+        return np.load(proposal_file)
 
     def get_ann_info(self, idx):
         return self.img_infos[idx]['ann']
@@ -521,5 +523,5 @@ class SegCustomDataset(Dataset):
                 proposals.append(_proposal)
         data = dict(img=imgs, img_meta=img_metas)
         if self.proposals is not None:
-            data['proposals'] = proposals
+            data['proposals'] = proposals[0]
         return data
